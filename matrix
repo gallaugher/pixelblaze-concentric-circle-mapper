@@ -1,0 +1,104 @@
+// Pixelblaze Mapper – 9 concentric rings (outer → inner)
+// Default counts (outer→inner): 60, 48, 40, 32, 24, 16, 12, 8, 1  | Total = 241
+// Produces [x, y] per pixel for use with render2D(index, x, y).
+
+function (pixelCount) {
+  // ====== EDIT THESE FOR YOUR SETUP ======
+
+  // Ring LED counts, outer → inner. Adjust if your physical layout changes.
+  const COUNTS = [60, 48, 40, 32, 24, 16, 12, 8, 1];
+
+  // Use computed radii or explicit radii?  "computed" | "explicit"
+  const RADII_MODE = "computed";
+
+  // If RADII_MODE === "explicit", supply one radius per ring (outer→inner).
+  // Range doesn't have to be 0..1, but typically outer ≈ 1 and inner ≈ 0.
+  const EXPLICIT_RADII = [1.0, 0.875, 0.75, 0.625, 0.5, 0.375, 0.25, 0.125, 0.0];
+
+  // If RADII_MODE === "computed", radii are spaced from outerRadius → innerRadius
+  // with a non-linear exponent (gamma). gamma=1 is linear; >1 crowds rings inward;
+  // <1 spreads them outward.
+  const outerRadius = 1.0;
+  const innerRadius = 0.0;
+  const gamma = 1.0; // try 0.8 or 1.4 to taste
+
+  // Orientation controls:
+  //   startAngle: where index 0 on the OUTER ring begins (radians)
+  //     0 = 3 o'clock, Math.PI/2 = 12 o'clock, Math.PI = 9 o'clock, etc.
+  //   clockwise: true to wind CW, false for CCW (adjust to match your wiring)
+  const startAngle = 0;
+  const clockwise  = true;
+
+  // Optional per-ring rotation (e.g., to align indexes visually).
+  // 0 means each ring starts at startAngle; set to a small value like (Math.PI / 180) * 5
+  // to rotate each inner ring by an extra 5 degrees.
+  const perRingTwist = 0;
+
+  // Global transforms:
+  //   centerX/Y: shift the whole layout
+  //   scale:     scale all coordinates (useful if you added normalization anchors)
+  const centerX = 0, centerY = 0, scale = 1;
+
+  // Normalization anchors:
+  //  If true, we add corner points to lock the bounding box to [-1,1] in both axes.
+  //  (Handy if your 2D patterns assume stable world bounds.)
+  const addNormalizationAnchors = false;
+
+  // ====== END OF SETTINGS ======
+
+  // Build radii array (outer → inner)
+  const rings = COUNTS.length;
+  const radii = (RADII_MODE === "explicit")
+    ? EXPLICIT_RADII.slice(0, rings)
+    : Array.from({ length: rings }, (_, r) => {
+        // r = 0 is outer ring; r = rings-1 is inner ring
+        const t = r / (rings - 1);        // 0..1 from outer→inner
+        const e = Math.pow(t, gamma);     // ease using gamma
+        return outerRadius * (1 - e) + innerRadius * e;
+      });
+
+  // Safety: if function is used in a project with pixelCount that doesn't
+  // match our sum, we'll slice/pad to fit so it still returns something valid.
+  const expectedTotal = COUNTS.reduce((a, b) => a + b, 0);
+
+  const map = [];
+  const dir = clockwise ? -1 : 1;
+
+  for (let r = 0; r < rings; r++) {
+    const n = COUNTS[r];
+    const radius = radii[r];
+
+    if (n === 1) {
+      // Center pixel (innermost ring)
+      map.push([centerX + scale * 0, centerY + scale * 0]);
+      continue;
+    }
+
+    const step = (2 * Math.PI) / n;
+    // Optional per-ring rotation
+    const ringStart = startAngle + r * perRingTwist;
+
+    for (let i = 0; i < n; i++) {
+      const theta = ringStart + dir * (i * step);
+      const x = centerX + scale * (radius * Math.cos(theta));
+      const y = centerY + scale * (radius * Math.sin(theta));
+      map.push([x, y]);
+    }
+  }
+
+  // Optionally lock normalization to a square [-1,1]×[-1,1].
+  if (addNormalizationAnchors) {
+    map.push([-1, -1], [ 1, -1], [ 1,  1], [-1,  1]);
+  }
+
+  // Pixelblaze expects exactly `pixelCount` entries.
+  if (map.length > pixelCount) {
+    return map.slice(0, pixelCount);
+  }
+  if (map.length < pixelCount) {
+    // Pad with center points if the target strip unexpectedly has more pixels.
+    const pad = Array.from({ length: pixelCount - map.length }, () => [centerX, centerY]);
+    return map.concat(pad);
+  }
+  return map;
+}
