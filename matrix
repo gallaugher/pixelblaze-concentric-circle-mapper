@@ -1,3 +1,5 @@
+// This mapper works with this set of concentric NeoPixel lights: 
+// https://www.aliexpress.us/item/3256806337810071.html?spm=a2g0o.order_list.order_list_main.28.43c81802nVN5fr&gatewayAdapt=glo2usa
 // Pixelblaze Mapper – 9 concentric rings (outer → inner)
 // Default counts (outer→inner): 60, 48, 40, 32, 24, 16, 12, 8, 1  | Total = 241
 // Produces [x, y] per pixel for use with render2D(index, x, y).
